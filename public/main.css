@@ -1,0 +1,44 @@
+.chat-left {
+  float: left;
+  width: 90%;
+  padding: 10px;
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  margin: 10px;
+  display: flex;
+  flex-direction: column-reverse;
+  overflow-y: auto; /* Cho phép cuộn nếu nội dung quá dài */
+  max-height: 500px; /* Giới hạn chiều cao tối đa */
+}
+
+#chat-messages {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+}
+
+#chat-messages li {
+  margin-bottom: 5px;
+}
+
+#basic-info {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+#basic-info > div {
+  margin-right: 20px; /* Điều chỉnh giá trị margin theo ý muốn */
+}
+
+.chat-right {
+  padding: 10px;
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  margin: 10px;
+  display: flex;
+  flex-direction: column-reverse;
+  overflow-y: auto; /* Cho phép cuộn nếu nội dung quá dài */
+  max-height: 500px; /* Giới hạn chiều cao tối đa */
+}

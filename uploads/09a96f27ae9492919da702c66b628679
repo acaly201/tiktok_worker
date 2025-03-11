@@ -1,0 +1,22 @@
+{
+  "value": [
+    {
+      "id": "AAMkAGVmMDEzA",
+      "displayName": "Internal Screens",
+      "parentFolderId": "AAMkAGVmMDEzM",
+      "childFolderCount": 0,
+      "unreadItemCount": 2,
+      "totalItemCount": 2,
+      "isHidden": false
+    },
+    {
+      "id": "AAMkAGVmMDEzB",
+      "displayName": "Clutters",
+      "parentFolderId": "AAMkAGVmMDEzM",
+      "childFolderCount": 0,
+      "unreadItemCount": 5,
+      "totalItemCount": 5,
+      "isHidden": true
+    }
+  ]
+}

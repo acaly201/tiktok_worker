@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.5.0/semantic.min.css" integrity="sha512-KXol4x3sVoO+8ZsWPFI/r5KBVB/ssCGB5tsv2nVOKwLg33wTFP3fmnXa47FdSVIshVTgsYk/1734xSk9aFIa4A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <script src="https://code.jquery.com/jquery-3.7.1.slim.min.js" integrity="sha256-kmHvs0B+OpCW5GVHUNjv9rOmY0IvSIRcf7zGUDTDQM8=" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.5.0/semantic.min.js" integrity="sha512-Xo0Jh8MsOn72LGV8kU5LsclG7SUzJsWGhXbWcYs2MAmChkQzwiW/yTQwdJ8w6UA9C6EVG18GHb/TrYpYCjyAQw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <script type="text/javascript">
+    function changeLiveSyncStatus(jobId, newStatus) {
+      fetch(`/jobs/tiktok/sync_live_status/${jobId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ is_sync_live: newStatus }),
+      })
+        .then((response) => {
+          if (response.ok) {
+            console.log(`Sync status changed to ${newStatus}`);
+          } else {
+            console.error('Failed to change sync status:', response.status);
+          }
+        })
+        .catch((error) => {
+          console.error('Error changing sync status:', error);
+        });
+    }
+
+    function changeActiveSyncStatus(jobId, newStatus) {
+      fetch(`/jobs/tiktok/sync_status/${jobId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      })
+        .then((response) => {
+          if (response.ok) {
+            console.log(`Sync status changed to ${newStatus}`);
+          } else {
+            console.error('Failed to change sync status:', response.status);
+          }
+        })
+        .catch((error) => {
+          console.error('Error changing sync status:', error);
+        });
+    }
+  </script>
+</head>
+<body>
+  <%-include("./partials/navbar")-%>
+  <!-- Form để tạo công việc mới -->
+  <form method="POST" action="/jobs/tiktok">
+    <label for="tiktok_uid">TikTok UID:</label>
+    <input type="text" id="tiktok_uid" name="tiktok_uid" required>
+    <button type="submit">Tạo công việc</button>
+  </form>
+  <div class="result"></div>
+  <!-- Danh sách công việc -->
+  <table class="ui compact celled definition table">
+    <thead>
+      <tr>
+        <th>Số thứ tự</th>
+        <th>TikTok </th>
+        <th>Trạng thái</th>
+        <th>Thời gian khởi tạo</th>
+        <th>Lần chạy cuối cùng</th>
+        <th>Documents</th>
+        <th>DELETE JOB</th>
+        <th>SYNC LIVE</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% jobList.forEach((job, index) => { %>
+        <tr id="job-row-<%= job.name %>">
+          <td><%= index + 1 %></td>
+          <td><a href="https://www.tiktok.com/@<%= job.name %>" target="_blank">@<%= job.name %></a></td>
+          <td>
+            <div class="ui toggle checkbox <%= job.status ? 'checked' : '' %>">
+              <input type="checkbox" id="<%= job.name %>" name="status" <% if (job.status) { %>checked<% } %>>
+                <label id="status-label-<%= job.name %>">
+                  <%= job.status ? 'on' : 'off' %>
+                </label>
+            </div>
+          </td>
+          <td><%= job.createdAt %></td>
+          <td><%= job.lastRun %></td>
+          <td><%= job.es_count.toLocaleString() %></td>
+          <td>
+            <button class="negative ui button delete-button" data-job-id="<%= job.name %>">DELETE</button>
+          </td>
+          <td>
+            <div class="ui toggle checkbox <%= job.is_sync_live ? 'checked' : '' %>">
+              <input type="checkbox" id="<%= job.name %>" name="is_sync_live" <% if (job.is_sync_live) { %>checked<% } %>>
+              <label id="sync-live-label-<%= job.name %>">
+                <%= job.is_sync_live ? 'on' : 'off' %>
+              </label>
+            </div>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+
+  <script>
+    const deleteButtons = document.querySelectorAll('.delete-button');
+    deleteButtons.forEach(button => {
+      button.addEventListener('click', async (event) => {
+        const confirmed = confirm('Bạn có chắc chắn muốn xoá công việc này?');
+        if (confirmed) {
+          const jobId = event.target.getAttribute('data-job-id');
+          
+          try {
+            const response = await fetch(`/jobs/tiktok/${jobId}`, {
+              method: 'DELETE',
+            });
+
+            const resultDiv = document.getElementById('result');
+
+            if (response.ok) {
+              const jobRow = document.getElementById(`job-row-${jobId}`);
+              if (jobRow) {
+                jobRow.remove();
+              }
+
+              resultDiv.innerHTML = `Job deleted successfully`;
+            } else {
+              resultDiv.innerHTML = `Failed to delete job: ${response.status}`;
+            }
+          } catch (error) {
+            console.error('Error:', error);
+          }
+        } else {
+          alert('Đã huỷ ');
+        }
+      });
+    });
+  </script>
+
+  <script>
+    const checkboxes = document.querySelectorAll('[type="checkbox"]');
+
+    checkboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        const jobId = this.id;
+        const status = this.checked ? 'on' : 'off';
+        const field = this.getAttribute('name');
+        console.log(`field: ${field}`)
+
+        if (field == 'is_sync_live') {
+          const label = document.getElementById(`sync-live-label-${jobId}`);
+          label.textContent = status;
+          changeLiveSyncStatus(jobId, status)
+        }else{
+          const statusLabel = document.getElementById(`status-label-${jobId}`);
+          statusLabel.textContent = status;
+          changeActiveSyncStatus(jobId, status)
+        }
+      });
+    });
+  </script>
+
+</body>
+</html>
