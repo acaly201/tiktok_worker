@@ -1,42 +1,511 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Realtime Chat and Event Info</title>
-  <link rel="stylesheet" href="/main.css">
-  <%-include("../../partials/header_sematic_ui")-%>
-</head>
-<body>
-  <%-include("../../partials/navbar")-%>
-  <div class="ui teal progress" id="connection-progress">
-    <div class="bar"></div>
-    <div class="label" id="connection-label">Connecting...</div>
-  </div>
-  <table style="width: 100%;">
-    <tr>
-      <td style="width: 60%;">
-        <h2>TIKTOK</h2>
-      </td>
-      <td>
-        <div class="event-info-right">
-          <h2>ADMIN</h2>
-        </div>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <div class="chat-left">
-          <div id="chat-messages" class="ui comments"></div>
-        </div>
-      </td>
-      <td>
-        <div class="chat-right">
-          <div id="admin-messages" class="ui comments"></div>
-        </div>
-      </td>
-    </tr>
-  </table>
+  <head>
+    <title>Realtime Chat and Event Info</title>
+    <link rel="stylesheet" href="/main.css" />
+    <style>
+      bbody {
+        font-family: Arial, Helvetica, sans-serif;
+        min-width: 800px;
+      }
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js" integrity="sha512-tE1z+95+lMCGwy+9PnKgUSIeHhvioC9lMlI7rLWU0Ps3XTdjRygLcy4mLuL0JAoK4TLdQEyP0yOl/9dMOqpH/Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <script src='/notification.js'></script>
-</body>
+      h1 {
+        font-size: 1.8em;
+        margin-top: 0px;
+        margin-bottom: 0px;
+      }
+
+      a {
+        color: #58a6ff;
+      }
+
+      .head {
+        margin-bottom: 15px;
+      }
+
+      .subTitle {
+        font-size: 0.8em;
+        font-weight: bold;
+      }
+
+      .usernamelink {
+        color: #18508f;
+        text-decoration: none;
+      }
+
+      #roomUserText {
+        width: 100%;
+        text-align: right;
+      }
+
+      #roomStats {
+        width: 100%;
+        text-align: right;
+      }
+
+      #roomStats b {
+        margin-right: 20px;
+      }
+
+      .splitchattable,
+      .splitstatetable {
+        width: 100%;
+      }
+
+      .splitstatetable td {
+        width: 50%;
+      }
+
+      .containerheader {
+        text-align: center;
+      }
+
+      .chatcontainer,
+      .giftcontainer,
+      .eventcontainer {
+        overflow-y: scroll;
+        height: calc(100vh - 240px);
+        word-wrap: break-word;
+      }
+
+      .eventcontainer {
+        height: calc(100vh - 90px);
+      }
+
+      .chatcontainer {
+        min-width: 400px;
+        max-width: calc(100vw - 430px);
+      }
+
+      .giftcontainer {
+        min-width: 400px;
+      }
+
+      .miniprofilepicture {
+        height: 20px;
+        width: 20px;
+      }
+
+      .gifticon {
+        height: 50px;
+        width: 50px;
+        margin-right: 10px;
+      }
+    </style>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.min.js"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script>
+      class TikTokIOConnection {
+        constructor(backendUrl) {
+          this.socket = io(backendUrl);
+          this.uniqueId = null;
+          this.options = null;
+
+          this.socket.on("connect", () => {
+            console.info("Socket connected!");
+
+            // Reconnect to streamer if uniqueId already set
+            if (this.uniqueId) {
+              this.setUniqueId();
+            }
+          });
+
+          this.socket.on("disconnect", () => {
+            console.warn("Socket disconnected!");
+          });
+
+          this.socket.on("streamEnd", () => {
+            console.warn("LIVE has ended!");
+            this.uniqueId = null;
+          });
+
+          this.socket.on("tiktokDisconnected", (errMsg) => {
+            console.warn(errMsg);
+            if (errMsg && errMsg.includes("LIVE has ended")) {
+              this.uniqueId = null;
+            }
+          });
+        }
+
+        connect(uniqueId, options) {
+          this.uniqueId = uniqueId;
+          this.options = options || {};
+
+          this.setUniqueId();
+
+          return new Promise((resolve, reject) => {
+            this.socket.once("tiktokConnected", resolve);
+            this.socket.once("tiktokDisconnected", reject);
+
+            setTimeout(() => {
+              reject("Connection Timeout");
+            }, 15000);
+          });
+        }
+
+        setUniqueId() {
+          this.socket.emit("setUniqueId", this.uniqueId, this.options);
+        }
+
+        on(eventName, eventHandler) {
+          this.socket.on(eventName, eventHandler);
+        }
+      }
+      let backendUrl =
+        location.protocol === "file:"
+          ? "https://tiktok-chat-reader.zerody.one/"
+          : undefined;
+
+      let connection = new TikTokIOConnection(backendUrl);
+
+      function generateOverlay() {
+        let username = $("#uniqueIdInput").val();
+        let url = `/obs.html?username=${username}&showLikes=1&showChats=1&showGifts=1&showFollows=1&showJoins=1&bgColor=rgb(24,23,28)&fontColor=rgb(227,229,235)&fontSize=1.3em`;
+
+        if (username) {
+          window.open(url, "_blank");
+        } else {
+          alert("Enter username");
+        }
+      }
+
+      // Counter
+      let viewerCount = 0;
+      let likeCount = 0;
+      let diamondsCount = 0;
+
+      // These settings are defined by obs.html
+      if (!window.settings) window.settings = {};
+
+      $(document).ready(() => {
+        $("#connectButton").click(connect);
+        $("#uniqueIdInput").on("keyup", function (e) {
+          if (e.key === "Enter") {
+            connect();
+          }
+        });
+
+        if (window.settings.username) connect();
+      });
+
+      function connect() {
+        console.log(1);
+        let uniqueId = window.settings.username || $("#uniqueIdInput").val();
+        if (uniqueId !== "") {
+          $("#stateText").text("Connecting...");
+
+          connection
+            .connect(uniqueId, {
+              enableExtendedGiftInfo: true,
+            })
+            .then((state) => {
+              $("#stateText").text(`Connected to roomId ${state.roomId}`);
+
+              // reset stats
+              viewerCount = 0;
+              likeCount = 0;
+              diamondsCount = 0;
+              updateRoomStats();
+            })
+            .catch((errorMessage) => {
+              $("#stateText").text(errorMessage);
+
+              // schedule next try if obs username set
+              if (window.settings.username) {
+                setTimeout(() => {
+                  connect(window.settings.username);
+                }, 30000);
+              }
+            });
+        } else {
+          alert("no username entered");
+        }
+      }
+
+      // Prevent Cross site scripting (XSS)
+      function sanitize(text) {
+        return text.replace(/</g, "&lt;");
+      }
+
+      function updateRoomStats() {
+        $("#roomStats").html(
+          `Viewers: <b>${viewerCount.toLocaleString()}</b> Likes: <b>${likeCount.toLocaleString()}</b> Earned Diamonds: <b>${diamondsCount.toLocaleString()}</b>`
+        );
+      }
+
+      function generateUsernameLink(data) {
+        return `<a class="usernamelink" href="https://www.tiktok.com/@${data.uniqueId}" target="_blank">${data.uniqueId}</a>`;
+      }
+
+      function isPendingStreak(data) {
+        return data.giftType === 1 && !data.repeatEnd;
+      }
+
+      /**
+       * Add a new message to the chat container
+       */
+      function addChatItem(color, data, text, summarize) {
+        let container = location.href.includes("obs.html")
+          ? $(".eventcontainer")
+          : $(".chatcontainer");
+
+        if (container.find("div").length > 500) {
+          container.find("div").slice(0, 200).remove();
+        }
+
+        container.find(".temporary").remove();
+
+        container.append(`
+        <div class=${summarize ? "temporary" : "static"}>
+            <img class="miniprofilepicture" src="${data.profilePictureUrl}">
+            <span>
+                <b>${generateUsernameLink(data)}:</b> 
+                <span style="color:${color}">${sanitize(text)}</span>
+            </span>
+        </div>
+    `);
+
+        container.stop();
+        container.animate(
+          {
+            scrollTop: container[0].scrollHeight,
+          },
+          400
+        );
+      }
+
+      /**
+       * Add a new gift to the gift container
+       */
+      function addGiftItem(data) {
+        let container = location.href.includes("obs.html")
+          ? $(".eventcontainer")
+          : $(".giftcontainer");
+
+        if (container.find("div").length > 200) {
+          container.find("div").slice(0, 100).remove();
+        }
+
+        let streakId = data.userId.toString() + "_" + data.giftId;
+
+        let html = `
+        <div data-streakid=${isPendingStreak(data) ? streakId : ""}>
+            <img class="miniprofilepicture" src="${data.profilePictureUrl}">
+            <span>
+                <b>${generateUsernameLink(data)}:</b> <span>${
+          data.describe
+        }</span><br>
+                <div>
+                    <table>
+                        <tr>
+                            <td><img class="gifticon" src="${
+                              data.giftPictureUrl
+                            }"></td>
+                            <td>
+                                <span>Name: <b>${data.giftName}</b> (ID:${
+          data.giftId
+        })<span><br>
+                                <span>Repeat: <b style="${
+                                  isPendingStreak(data) ? "color:red" : ""
+                                }">x${data.repeatCount.toLocaleString()}</b><span><br>
+                                <span>Cost: <b>${(
+                                  data.diamondCount * data.repeatCount
+                                ).toLocaleString()} Diamonds</b><span>
+                            </td>
+                        </tr>
+                    </tabl>
+                </div>
+            </span>
+        </div>
+    `;
+
+        let existingStreakItem = container.find(
+          `[data-streakid='${streakId}']`
+        );
+
+        if (existingStreakItem.length) {
+          existingStreakItem.replaceWith(html);
+        } else {
+          container.append(html);
+        }
+
+        container.stop();
+        container.animate(
+          {
+            scrollTop: container[0].scrollHeight,
+          },
+          800
+        );
+      }
+
+      // viewer stats
+      connection.on("roomUser", (msg) => {
+        if (typeof msg.viewerCount === "number") {
+          viewerCount = msg.viewerCount;
+          updateRoomStats();
+        }
+      });
+
+      // like stats
+      connection.on("like", (msg) => {
+        if (typeof msg.totalLikeCount === "number") {
+          likeCount = msg.totalLikeCount;
+          updateRoomStats();
+        }
+
+        if (window.settings.showLikes === "0") return;
+
+        if (typeof msg.likeCount === "number") {
+          addChatItem(
+            "#447dd4",
+            msg,
+            msg.label
+              .replace("{0:user}", "")
+              .replace("likes", `${msg.likeCount} likes`)
+          );
+        }
+      });
+
+      // Member join
+      let joinMsgDelay = 0;
+      connection.on("member", (msg) => {
+        if (window.settings.showJoins === "0") return;
+
+        let addDelay = 250;
+        if (joinMsgDelay > 500) addDelay = 100;
+        if (joinMsgDelay > 1000) addDelay = 0;
+
+        joinMsgDelay += addDelay;
+
+        setTimeout(() => {
+          joinMsgDelay -= addDelay;
+          addChatItem("#21b2c2", msg, "joined", true);
+        }, joinMsgDelay);
+      });
+
+      // New chat comment received
+      connection.on("chat", (msg) => {
+        if (window.settings.showChats === "0") return;
+
+        addChatItem("", msg, msg.comment);
+      });
+
+      // New gift received
+      connection.on("gift", (data) => {
+        if (!isPendingStreak(data) && data.diamondCount > 0) {
+          diamondsCount += data.diamondCount * data.repeatCount;
+          updateRoomStats();
+        }
+
+        if (window.settings.showGifts === "0") return;
+
+        addGiftItem(data);
+      });
+
+      // share, follow
+      connection.on("social", (data) => {
+        if (window.settings.showFollows === "0") return;
+
+        let color = data.displayType.includes("follow") ? "#ff005e" : "#2fb816";
+        addChatItem(color, data, data.label.replace("{0:user}", ""));
+      });
+
+      connection.on("streamEnd", () => {
+        $("#stateText").text("Stream ended.");
+
+        // schedule next try if obs username set
+        if (window.settings.username) {
+          setTimeout(() => {
+            connect(window.settings.username);
+          }, 30000);
+        }
+      });
+      $("#connectButton").click(() => {
+        console.log(1);
+        let username = $("#uniqueIdInput").val();
+        if (username) {
+          socket.emit("join", { username });
+        }
+      });
+    </script>
+
+    <%-include("../../partials/header_sematic_ui")-%>
+  </head>
+  <body>
+    <%-include("../../partials/navbar")-%>
+    <div class="ui teal progress" id="connection-progress">
+      <div class="bar"></div>
+      <div class="label" id="connection-label">Connecting...</div>
+    </div>
+    <div class="inputFields">
+      <p>Enter the <b>@username</b> of a user who is currently live:</p>
+      <input type="text" id="uniqueIdInput" />
+      <input type="button" id="connectButton" value="connect" />
+      <a href="#" onclick="generateOverlay()">Generate Overlay URL</a>
+    </div>
+    <table style="width: 100%">
+      <tr>
+        <td style="width: 60%">
+          <h2>TIKTOK</h2>
+        </td>
+        <td>
+          <div class="event-info-right">
+            <h2>ADMIN</h2>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="chat-left">
+            <div id="chat-messages" class="ui comments"></div>
+          </div>
+        </td>
+        <td>
+          <div class="chat-right">
+            <div id="admin-messages" class="ui comments"></div>
+          </div>
+        </td>
+      </tr>
+    </table>
+    <table class="splitstatetable">
+      <tr>
+        <td>
+          <pre id="stateText"></pre>
+        </td>
+        <td>
+          <div id="roomStats"></div>
+        </td>
+      </tr>
+    </table>
+
+    <table class="splitchattable">
+      <tr>
+        <td>
+          <div class="chatcontainer">
+            <h3 class="containerheader">Chats</h3>
+          </div>
+        </td>
+        <td>
+          <div class="giftcontainer">
+            <h3 class="containerheader">Gifts</h3>
+          </div>
+        </td>
+      </tr>
+    </table>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"
+      integrity="sha512-tE1z+95+lMCGwy+9PnKgUSIeHhvioC9lMlI7rLWU0Ps3XTdjRygLcy4mLuL0JAoK4TLdQEyP0yOl/9dMOqpH/Q=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script src="/notification.js"></script>
+  </body>
 </html>
